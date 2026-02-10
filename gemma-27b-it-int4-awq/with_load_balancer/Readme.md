@@ -54,11 +54,13 @@ Test both nodes locally to ensure the vLLM engines are responding open 2 cmd win
 ```bash
 curl -X POST http://localhost:9998/v1/completions -H "Content-Type: application/json" -d "{\"model\":\"/home/skiredj.abderrahman/models/gemma27b-it-int4-awq\",\"prompt\":\"do u have a wish\",\"max_tokens\":50}"
 ```
-<img width="1029" height="84" alt="image" src="https://github.com/user-attachments/assets/1cde22e0-ebfe-40d5-bfb4-d022083b45c5" />
+
+
 ```bash
 curl -X POST http://localhost:9997/v1/completions -H "Content-Type: application/json" -d "{\"model\":\"/home/skiredj.abderrahman/models/gemma27b-it-int4-awq\",\"prompt\":\"do u have a wish\",\"max_tokens\":50}"
-```
 
+```
+<img width="1029" height="84" alt="image" src="https://github.com/user-attachments/assets/1cde22e0-ebfe-40d5-bfb4-d022083b45c5" />
 
 ---
 
