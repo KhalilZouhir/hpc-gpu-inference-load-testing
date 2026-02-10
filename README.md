@@ -40,3 +40,6 @@ This repository **does not include benchmark results or performance comparisons*
 - NGINX-based load balancing for multi-GPU inference  
 
 ---
+<img width="1219" height="671" alt="image" src="https://github.com/user-attachments/assets/8a714f71-2447-4f93-bfc7-244f00fcbf0b" />
+<img width="1680" height="1464" alt="screencapture-localhost-3000-d-k6-k6-load-testing-results-2026-02-06-13_14_13" src="https://github.com/user-attachments/assets/98352797-fd5b-45d0-91bc-7001cb0490ec" />
+
