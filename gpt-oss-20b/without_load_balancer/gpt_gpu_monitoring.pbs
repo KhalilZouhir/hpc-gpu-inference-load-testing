@@ -1,0 +1,77 @@
+#!/bin/bash
+#PBS -N khalil_gptoss_monitoring
+#PBS -l select=1:ncpus=20:mem=180gb:ngpus=1
+#PBS -q gpu_1d
+#PBS -o gpt_tests_log/gpt_output_%J.log
+#PBS -e gpt_tests_log/gpt_error_%J.log
+
+# === Load modules & activate conda ===
+module use /app/common/modules
+module load anaconda3-2024.10
+source activate gptoss-vllm
+
+# === Move to working directory ===
+cd /home/skiredj.abderrahman/khalil/performance_testing
+
+# === Confirm node ===
+echo "==== Job running on node: $(hostname -s) ===="
+
+# === Setup cleanup on job exit ===
+cleanup() {
+    echo "Cleaning up..."
+    kill 0
+}
+trap cleanup EXIT
+
+# === Start vmstat monitor (every 30s) ===
+monitor_vmstat() {
+    while true; do
+        echo "==== $(date) ====" >> gpt_tests_log/vmstat.txt
+        vmstat 1 2 | tail -1 >> gpt_tests_log/vmstat.txt
+        sleep 29
+    done
+}
+
+# === Start nvidia-smi monitor (every 30s) ===
+monitor_nvidia() {
+    while true; do
+
+        nvidia-smi \
+        --query-gpu=timestamp,utilization.gpu,memory.used,memory.total \
+        --format=csv,noheader,nounits >> gpt_tests_log/nvidia_smi.csv
+        sleep 30
+    done
+}
+
+# === Monitor vLLM RAM usage (swap-space %) ===
+monitor_vllm_metrics() {
+  OUT="gpt_tests_log/swap_space_usage.csv"
+  echo "ram_percent,rss_kb" > "$OUT"
+
+  TOTAL_RAM_KB=$((180 * 1024 * 1024))  # 180 GB in KB
+
+  while true; do
+    pid=$(pgrep -f 'vllm.*serve')
+    if [[ -n "$pid" ]]; then
+      rss=$(ps -o rss= -p "$pid" | awk '{print $1}')  # RSS in KB
+      ram_percent=$(awk -v r="$rss" -v t="$TOTAL_RAM_KB" 'BEGIN{printf "%.2f", (r/t)*100}')
+    else
+      rss=0
+      ram_percent=0
+    fi
+    echo "${ram_percent},${rss}" >> "$OUT"
+    sleep 30
+  done
+}
+
+
+# === Now start monitors ===
+monitor_vmstat &
+monitor_nvidia &
+monitor_vllm_metrics &
+
+# === Wait until everything exits ===
+wait
+
+# === Wait until job ends ===
+wait

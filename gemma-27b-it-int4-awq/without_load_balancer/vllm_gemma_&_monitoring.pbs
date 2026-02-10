@@ -1,0 +1,95 @@
+#!/bin/bash
+#PBS -N 1gpu
+#PBS -l select=1:ncpus=20:mem=180gb:ngpus=1
+#PBS -q gpu_1w
+#PBS -o gpu_tests_log/1gpu_output.log
+#PBS -e gpu_tests_log/1gpu_error.log
+
+# === Load modules & activate conda ===
+module use /app/common/modules
+module load anaconda3-2024.10
+# what matters a VENV that can run vllm
+source activate gptoss-vllm
+
+# === Move to working directory ===
+cd /home/skiredj.abderrahman/khalil/performance_testing
+
+# === Confirm node ===
+echo "==== Job running on node: $(hostname -s) ===="
+
+# === Setup cleanup on job exit ===
+cleanup() {
+    echo "Cleaning up..."
+    kill 0
+}
+trap cleanup EXIT
+
+# === Start vmstat monitor (every 30s) ===
+monitor_vmstat() {
+    while true; do
+        echo "==== $(date) ====" >> gpu_tests_log/vmstat.txt
+        vmstat 1 2 | tail -1 >> gpu_tests_log/vmstat.txt
+        sleep 29
+    done
+}
+
+# === Start nvidia-smi monitor (every 30s) ===
+monitor_nvidia() {
+    while true; do
+
+        nvidia-smi \
+        --query-gpu=timestamp,utilization.gpu,memory.used,memory.total \
+        --format=csv,noheader,nounits >> gpu_tests_log/nvidia_smi.csv
+        sleep 30
+    done
+}
+
+# === Monitor vLLM RAM usage (swap-space %) ===
+monitor_vllm_metrics() {
+  OUT="gpu_tests_log/swap_space_usage.csv"
+  echo "ram_percent,rss_kb" > "$OUT"
+
+  TOTAL_RAM_KB=$((180 * 1024 * 1024))  # 180 GB in KB
+
+  while true; do
+    pid=$(pgrep -f 'vllm.*serve')
+    if [[ -n "$pid" ]]; then
+      rss=$(ps -o rss= -p "$pid" | awk '{print $1}')  # RSS in KB
+      ram_percent=$(awk -v r="$rss" -v t="$TOTAL_RAM_KB" 'BEGIN{printf "%.2f", (r/t)*100}')
+    else
+      rss=0
+      ram_percent=0
+    fi
+    echo "${ram_percent},${rss}" >> "$OUT"
+    sleep 30
+  done
+}
+
+
+# === Start vLLM server ===
+# inferior then 128k input + 8,192 output
+start_vllm() {
+
+    echo "==== Job running on node: $(hostname -s) ===="
+vllm serve /home/skiredj.abderrahman/LLM1-Test/gemma-3-27b-it-int4-awq  \
+  --port 9998  >> gpu_tests_log/vllm.log 2>&1
+  }
+
+# === Launch all 3 in background ===
+# === Launch server first ===
+start_vllm &                     # start vLLM in background
+
+# === Delay monitors by 90s (change to 60 or 120 as you like) ===
+DELAY_SEC=5   # set to 60 or 120 per your preference
+sleep "${DELAY_SEC}"
+
+# === Now start monitors ===
+monitor_vmstat &
+monitor_nvidia &
+monitor_vllm_metrics &
+
+# === Wait until everything exits ===
+wait
+
+# === Wait until job ends ===
+wait
